@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.GeminiLens" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#6750A4</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorPrimaryContainer">#EADDFF</item>
-        <item name="colorOnPrimaryContainer">#21005D</item>
-        <item name="colorSecondary">#625B71</item>
-        <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="android:statusBarColor">#101018</item>
-        <item name="android:navigationBarColor">#101018</item>
+        <item name="colorPrimary">@color/primary_red</item>
+        <item name="colorOnPrimary">@color/cream_yellow</item>
+        <item name="colorPrimaryContainer">@color/dark_burgundy</item>
+        <item name="colorOnPrimaryContainer">@color/cream_yellow</item>
+        <item name="colorSecondary">@color/primary_red</item>
+        <item name="colorOnSecondary">@color/cream_yellow</item>
+        <item name="colorSurface">@color/dark_burgundy</item>
+        <item name="colorOnSurface">@color/cream_yellow</item>
+        <item name="android:statusBarColor">@color/black</item>
+        <item name="android:navigationBarColor">@color/black</item>
+        <item name="android:windowBackground">@color/black</item>
     </style>
     <style name="Theme.MyApplication" parent="Theme.GeminiLens" />
 </resources>

@@ -15,12 +15,7 @@ import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ElevenLabsClient {
     private static final String TAG = "ElevenLabsClient";
@@ -28,10 +23,11 @@ public class ElevenLabsClient {
     private static final String FEMALE_VOICE_ID = "qIH9nL32c7wk5wfPjick";
     private static final String API_URL = "https://api.elevenlabs.io/v1/text-to-speech/";
 
-    private final OkHttpClient httpClient;
+    private final okhttp3.OkHttpClient httpClient;
     private final ExecutorService executorService;
     private final Handler mainHandler;
     private MediaPlayer mediaPlayer;
+    private final AtomicLong currentNarrationId = new AtomicLong(0);
 
     public interface NarrationCallback {
         void onStart();
@@ -40,7 +36,7 @@ public class ElevenLabsClient {
     }
 
     public ElevenLabsClient() {
-        this.httpClient = new OkHttpClient.Builder()
+        this.httpClient = new okhttp3.OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
@@ -62,8 +58,11 @@ public class ElevenLabsClient {
         }
 
         stopAudio();
+        final long narrationId = currentNarrationId.incrementAndGet();
 
         executorService.execute(() -> {
+            if (narrationId != currentNarrationId.get()) return;
+
             try {
                 JSONObject jsonBody = new JSONObject();
                 jsonBody.put("text", text.trim());
@@ -76,25 +75,29 @@ public class ElevenLabsClient {
                 voiceSettings.put("use_speaker_boost", true);
                 jsonBody.put("voice_settings", voiceSettings);
 
-                RequestBody body = RequestBody.create(
+                okhttp3.RequestBody body = okhttp3.RequestBody.create(
                         jsonBody.toString(),
-                        MediaType.parse("application/json; charset=utf-8")
+                        okhttp3.MediaType.parse("application/json; charset=utf-8")
                 );
 
                 String voiceId = isFemaleVoice ? FEMALE_VOICE_ID : MALE_VOICE_ID;
                 String url = API_URL + voiceId;
-                Request request = new Request.Builder()
+                okhttp3.Request request = new okhttp3.Request.Builder()
                         .url(url)
                         .addHeader("xi-api-key", apiKey.trim())
                         .addHeader("Accept", "audio/mpeg")
                         .post(body)
                         .build();
 
-                try (Response response = httpClient.newCall(request).execute()) {
+                if (narrationId != currentNarrationId.get()) return;
+
+                try (okhttp3.Response response = httpClient.newCall(request).execute()) {
+                    if (narrationId != currentNarrationId.get()) return;
+
                     if (!response.isSuccessful() || response.body() == null) {
                         String errorText = response.body() != null ? response.body().string() : "Empty body";
                         Log.e(TAG, "ElevenLabs API error (" + response.code() + "): " + errorText);
-                        notifyError(callback, "ElevenLabs API error (" + response.code() + ")");
+                        notifyError(callback, narrationId, "ElevenLabs API error (" + response.code() + ")");
                         return;
                     }
 
@@ -105,18 +108,22 @@ public class ElevenLabsClient {
                         byte[] buffer = new byte[8192];
                         int bytesRead;
                         while ((bytesRead = is.read(buffer)) != -1) {
+                            if (narrationId != currentNarrationId.get()) return;
                             fos.write(buffer, 0, bytesRead);
                         }
                         fos.flush();
                     }
 
+                    if (narrationId != currentNarrationId.get()) return;
+
                     // Play audio on main thread
-                    mainHandler.post(() -> playAudioFile(cacheFile, callback));
+                    mainHandler.post(() -> playAudioFile(cacheFile, narrationId, callback));
                 }
 
             } catch (Exception e) {
+                if (narrationId != currentNarrationId.get()) return;
                 Log.e(TAG, "Error executing ElevenLabs TTS request", e);
-                notifyError(callback, "ElevenLabs TTS request failed: " + e.getLocalizedMessage());
+                notifyError(callback, narrationId, "ElevenLabs TTS request failed: " + e.getLocalizedMessage());
             }
         });
     }
@@ -125,9 +132,10 @@ public class ElevenLabsClient {
         speakText(context, apiKey, text, false, callback);
     }
 
-    private void playAudioFile(File audioFile, NarrationCallback callback) {
+    private void playAudioFile(File audioFile, long narrationId, NarrationCallback callback) {
+        if (narrationId != currentNarrationId.get()) return;
         try {
-            stopAudio();
+            stopAudioInternal();
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(audioFile.getAbsolutePath());
             mediaPlayer.prepare();
@@ -135,16 +143,25 @@ public class ElevenLabsClient {
             params.setSpeed(1.1f);
             mediaPlayer.setPlaybackParams(params);
 
+            if (narrationId != currentNarrationId.get()) {
+                stopAudioInternal();
+                return;
+            }
+
             if (callback != null) callback.onStart();
 
             mediaPlayer.setOnCompletionListener(mp -> {
-                stopAudio();
-                if (callback != null) callback.onCompletion();
+                stopAudioInternal();
+                if (narrationId == currentNarrationId.get() && callback != null) {
+                    callback.onCompletion();
+                }
             });
 
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                stopAudio();
-                if (callback != null) callback.onError("MediaPlayer error code " + what);
+                stopAudioInternal();
+                if (narrationId == currentNarrationId.get() && callback != null) {
+                    callback.onError("MediaPlayer error code " + what);
+                }
                 return true;
             });
 
@@ -152,12 +169,19 @@ public class ElevenLabsClient {
 
         } catch (Exception e) {
             Log.e(TAG, "Error playing audio file", e);
-            stopAudio();
-            if (callback != null) callback.onError("Audio playback error: " + e.getMessage());
+            stopAudioInternal();
+            if (narrationId == currentNarrationId.get() && callback != null) {
+                callback.onError("Audio playback error: " + e.getMessage());
+            }
         }
     }
 
     public void stopAudio() {
+        currentNarrationId.incrementAndGet();
+        stopAudioInternal();
+    }
+
+    private void stopAudioInternal() {
         if (mediaPlayer != null) {
             try {
                 if (mediaPlayer.isPlaying()) {
@@ -170,9 +194,11 @@ public class ElevenLabsClient {
         }
     }
 
-    private void notifyError(NarrationCallback callback, String message) {
+    private void notifyError(NarrationCallback callback, long narrationId, String message) {
         mainHandler.post(() -> {
-            if (callback != null) callback.onError(message);
+            if (narrationId == currentNarrationId.get() && callback != null) {
+                callback.onError(message);
+            }
         });
     }
 }

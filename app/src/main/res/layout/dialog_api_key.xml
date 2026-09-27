@@ -5,13 +5,13 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="#1E1A2E">
+    android:background="#650014">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/api_key_dialog_title"
-        android:textColor="#FFFFFF"
+        android:textColor="#FFF3B6"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -21,7 +21,7 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="16dp"
         android:text="@string/api_key_dialog_msg"
-        android:textColor="#B4B4CF"
+        android:textColor="#FFF3B6"
         android:textSize="14sp" />
 
     <com.google.android.material.textfield.TextInputLayout
@@ -30,15 +30,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Gemini API Key"
-        app:boxStrokeColor="#A78BFA"
-        app:hintTextColor="#C4B5FD"
+        app:boxStrokeColor="#C11F25"
+        app:hintTextColor="#FFF3B6"
         app:passwordToggleEnabled="true">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etApiKey"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
+            android:textColor="#FFF3B6"
             android:inputType="textPassword"
             android:hint="@string/api_key_hint" />
     </com.google.android.material.textfield.TextInputLayout>
@@ -48,7 +48,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:textColor="#8B5CF6"
+        android:textColor="#FFF3B6"
         android:textSize="12sp"
         android:text="Current key source: None" />
 
@@ -65,7 +65,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Clear Key"
-            android:textColor="#F87171" />
+            android:textColor="#C11F25" />
 
         <Space
             android:layout_width="0dp"
@@ -78,7 +78,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/btn_cancel"
-            android:textColor="#94A3B8" />
+            android:textColor="#FFF3B6" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSaveApiKey"
@@ -86,8 +86,8 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:text="@string/btn_save"
-            app:backgroundTint="#8B5CF6"
-            android:textColor="#FFFFFF" />
+            app:backgroundTint="#C11F25"
+            android:textColor="#FFF3B6" />
     </LinearLayout>
 
 </LinearLayout>

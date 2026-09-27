@@ -13,6 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -28,6 +29,7 @@ public class GeminiApiClient {
     private final OkHttpClient httpClient;
     private final ExecutorService executorService;
     private final Handler mainHandler;
+    private final AtomicLong currentRequestId = new AtomicLong(0);
 
     public interface ApiCallback {
         void onSuccess(String description);
@@ -44,6 +46,10 @@ public class GeminiApiClient {
         this.mainHandler = new Handler(Looper.getMainLooper());
     }
 
+    public void cancelPendingRequests() {
+        currentRequestId.incrementAndGet();
+    }
+
     public void analyzeImage(String apiKey, Bitmap bitmap, String prompt, String modelName, ApiCallback callback) {
         analyzeImage(apiKey, bitmap, null, prompt, modelName, callback);
     }
@@ -54,14 +60,20 @@ public class GeminiApiClient {
             return;
         }
 
+        final long requestId = currentRequestId.incrementAndGet();
         final String selectedModel = (modelName == null || modelName.isEmpty()) ? DEFAULT_MODEL : modelName;
 
         executorService.execute(() -> {
+            if (requestId != currentRequestId.get()) return;
+
             try {
                 String base64Current = bitmapToBase64Jpeg(currentBitmap);
+                if (requestId != currentRequestId.get()) return;
+
                 String base64Previous = (previousBitmap != null && previousBitmap != currentBitmap)
                         ? bitmapToBase64Jpeg(previousBitmap)
                         : null;
+                if (requestId != currentRequestId.get()) return;
 
                 // Build Request JSON
                 JSONObject rootJson = new JSONObject();
@@ -128,27 +140,34 @@ public class GeminiApiClient {
                         .post(body)
                         .build();
 
+                if (requestId != currentRequestId.get()) return;
+
                 try (Response response = httpClient.newCall(request).execute()) {
+                    if (requestId != currentRequestId.get()) return;
+
                     if (response.body() == null) {
-                        notifyError(callback, "Server returned an empty response body.");
+                        notifyError(callback, requestId, "Server returned an empty response body.");
                         return;
                     }
 
                     String responseString = response.body().string();
+                    if (requestId != currentRequestId.get()) return;
+
                     if (!response.isSuccessful()) {
                         Log.e(TAG, "Gemini API Error (" + response.code() + "): " + responseString);
                         String errorMsg = parseErrorMessage(responseString, response.code());
-                        notifyError(callback, errorMsg);
+                        notifyError(callback, requestId, errorMsg);
                         return;
                     }
 
                     String generatedText = parseGeneratedText(responseString);
-                    notifySuccess(callback, generatedText);
+                    notifySuccess(callback, requestId, generatedText);
                 }
 
             } catch (Exception e) {
+                if (requestId != currentRequestId.get()) return;
                 Log.e(TAG, "Error executing Gemini API call", e);
-                notifyError(callback, "Request failed: " + e.getLocalizedMessage());
+                notifyError(callback, requestId, "Request failed: " + e.getLocalizedMessage());
             }
         });
     }
@@ -217,11 +236,19 @@ public class GeminiApiClient {
         return "Gemini API Error (" + httpCode + ")";
     }
 
-    private void notifySuccess(ApiCallback callback, String text) {
-        mainHandler.post(() -> callback.onSuccess(text));
+    private void notifySuccess(ApiCallback callback, long requestId, String text) {
+        mainHandler.post(() -> {
+            if (requestId == currentRequestId.get()) {
+                callback.onSuccess(text);
+            }
+        });
     }
 
-    private void notifyError(ApiCallback callback, String errorMessage) {
-        mainHandler.post(() -> callback.onError(errorMessage));
+    private void notifyError(ApiCallback callback, long requestId, String errorMessage) {
+        mainHandler.post(() -> {
+            if (requestId == currentRequestId.get()) {
+                callback.onError(errorMessage);
+            }
+        });
     }
 }

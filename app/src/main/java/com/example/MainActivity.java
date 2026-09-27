@@ -1,5 +1,7 @@
 package com.example;
 
+import static com.example.R.*;
+
 import android.Manifest;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -18,7 +20,6 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.ScaleGestureDetector;
 import android.view.View;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -26,7 +27,6 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
@@ -36,7 +36,6 @@ import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
 
-import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -63,11 +62,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     "Return only the brief.";
 
     // UI Elements
-    private MaterialToolbar topToolbar;
+    private MaterialButton btnSettings;
     private PreviewView cameraPreviewView;
-    private ImageView ivSelectedImage;
 
-    private View viewStatusDot;
+    private View layoutStatusBadge;
+
     private TextView tvLiveStatus;
 
     private MaterialCardView cardResult;
@@ -77,8 +76,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private MaterialButton btnToggleFlash;
     private MaterialButton btnToggleGeminiLive;
     private MaterialButton btnTurnOffGemini;
-    private MaterialButton btnSwitchCamera;
-    private MaterialButton btnPickGallery;
 
     private MaterialButton btnZoom1x;
     private MaterialButton btnZoom2x;
@@ -90,7 +87,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     // Camera State
     private ProcessCameraProvider cameraProvider;
     private Camera camera;
-    private int lensFacing = CameraSelector.LENS_FACING_BACK;
+    private final int lensFacing = CameraSelector.LENS_FACING_BACK;
     private boolean isFlashOn = false;
 
     // Sensors & Motion Detection State
@@ -143,7 +140,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     // Launchers
     private ActivityResultLauncher<String[]> permissionsLauncher;
-    private ActivityResultLauncher<String> galleryLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -167,13 +163,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         speechRecognizerManager = new SpeechRecognizerManager(this, new SpeechRecognizerManager.SpeechListener() {
             @Override
             public void onSpeechStarted() {
+                if (!isGeminiLiveEnabled) return;
                 runOnUiThread(() -> tvLiveStatus.setText("🎙️ Listening to you..."));
             }
 
             @Override
             public void onSpeechResult(String spokenText) {
                 Log.d(TAG, "Speech recognized: " + spokenText);
-                if (isAnalysisInProgress || isNarrating) {
+                if (!isGeminiLiveEnabled || isAnalysisInProgress || isNarrating) {
                     return;
                 }
 
@@ -194,7 +191,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             @Override
             public void onListeningStateChanged(boolean isListening) {
                 runOnUiThread(() -> {
-                    if (!isAnalysisInProgress && !isNarrating && !speechRecognizerManager.isUserSpeaking()) {
+                    if (isGeminiLiveEnabled && !isAnalysisInProgress && !isNarrating && !speechRecognizerManager.isUserSpeaking()) {
                         updateLiveModeUI();
                     }
                 });
@@ -216,11 +213,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void initViews() {
-        topToolbar = findViewById(R.id.topToolbar);
+        btnSettings = findViewById(R.id.btnSettings);
         cameraPreviewView = findViewById(R.id.cameraPreviewView);
-        ivSelectedImage = findViewById(R.id.ivSelectedImage);
 
-        viewStatusDot = findViewById(R.id.viewStatusDot);
+        layoutStatusBadge = findViewById(R.id.layoutStatusBadge);
+
         tvLiveStatus = findViewById(R.id.tvLiveStatus);
 
         cardResult = findViewById(R.id.cardResult);
@@ -230,8 +227,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btnToggleFlash = findViewById(R.id.btnToggleFlash);
         btnToggleGeminiLive = findViewById(R.id.btnToggleGeminiLive);
         btnTurnOffGemini = findViewById(R.id.btnTurnOffGemini);
-        btnSwitchCamera = findViewById(R.id.btnSwitchCamera);
-        btnPickGallery = findViewById(R.id.btnPickGallery);
 
         btnZoom1x = findViewById(R.id.btnZoom1x);
         btnZoom2x = findViewById(R.id.btnZoom2x);
@@ -240,18 +235,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btnCopyText = findViewById(R.id.btnCopyText);
         btnShareText = findViewById(R.id.btnShareText);
 
-        topToolbar.inflateMenu(R.menu.menu_main);
-        topToolbar.setOnMenuItemClickListener(item -> {
-            int itemId = item.getItemId();
-            if (itemId == R.id.action_settings) {
-                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
-                return true;
-            } else if (itemId == R.id.action_about) {
-                showAboutDialog();
-                return true;
-            }
-            return false;
-        });
+        btnSettings.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, SettingsActivity.class)));
 
         updateLiveModeUI();
         updateZoomButtonsUI(1.0f);
@@ -302,28 +286,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     }
                 }
         );
-
-        galleryLauncher = registerForActivityResult(
-                new ActivityResultContracts.GetContent(),
-                uri -> {
-                    if (uri != null) {
-                        if (isGeminiLiveEnabled) {
-                            toggleGeminiLiveMode();
-                        }
-
-                        Bitmap bitmap = ImageUtils.getBitmapFromUri(this, uri);
-                        if (bitmap != null) {
-                            cameraPreviewView.setVisibility(View.GONE);
-                            ivSelectedImage.setImageBitmap(bitmap);
-                            ivSelectedImage.setVisibility(View.VISIBLE);
-
-                            performGeminiAnalysis(bitmap, false, null);
-                        } else {
-                            Toast.makeText(this, "Failed to load image from gallery.", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                }
-        );
     }
 
     private void setupListeners() {
@@ -334,20 +296,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             if (camera != null && camera.getCameraInfo().hasFlashUnit()) {
                 isFlashOn = !isFlashOn;
                 camera.getCameraControl().enableTorch(isFlashOn);
-                btnToggleFlash.setAlpha(isFlashOn ? 1.0f : 0.6f);
+                btnToggleFlash.setIcon(ContextCompat.getDrawable(this, isFlashOn ? R.drawable.flash_on : R.drawable.flash_off));
+                btnToggleFlash.setBackgroundColor(isFlashOn ? 0xFFC11F25 : 0xFF650014);
             } else {
                 Toast.makeText(this, "Flash is not supported on this camera device.", Toast.LENGTH_SHORT).show();
             }
         });
-
-        btnSwitchCamera.setOnClickListener(v -> {
-            lensFacing = (lensFacing == CameraSelector.LENS_FACING_BACK)
-                    ? CameraSelector.LENS_FACING_FRONT
-                    : CameraSelector.LENS_FACING_BACK;
-            startCameraX();
-        });
-
-        btnPickGallery.setOnClickListener(v -> galleryLauncher.launch("image/*"));
 
         btnZoom1x.setOnClickListener(v -> setCameraZoomRatio(1.0f));
         btnZoom2x.setOnClickListener(v -> setCameraZoomRatio(2.0f));
@@ -407,9 +361,27 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void updateZoomButtonsUI(float zoomRatio) {
-        btnZoom1x.setBackgroundColor(Color.parseColor(Math.abs(zoomRatio - 1.0f) < 0.3f ? "#408B5CF6" : "#00000000"));
-        btnZoom2x.setBackgroundColor(Color.parseColor(Math.abs(zoomRatio - 2.0f) < 0.3f ? "#408B5CF6" : "#00000000"));
-        btnZoom5x.setBackgroundColor(Color.parseColor(Math.abs(zoomRatio - 5.0f) < 0.3f ? "#408B5CF6" : "#00000000"));
+        btnZoom1x.setBackgroundColor(Color.parseColor(Math.abs(zoomRatio - 1.0f) < 0.3f ? "#FFC11F25" : "#00000000"));
+        btnZoom2x.setBackgroundColor(Color.parseColor(Math.abs(zoomRatio - 2.0f) < 0.3f ? "#FFC11F25" : "#00000000"));
+        btnZoom5x.setBackgroundColor(Color.parseColor(Math.abs(zoomRatio - 5.0f) < 0.3f ? "#FFC11F25" : "#00000000"));
+    }
+
+    private void terminateInFlightWork() {
+        autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
+        if (speechRecognizerManager != null) {
+            speechRecognizerManager.stopListening();
+        }
+        if (elevenLabsClient != null) {
+            elevenLabsClient.stopAudio();
+        }
+        if (geminiApiClient != null) {
+            geminiApiClient.cancelPendingRequests();
+        }
+        isAnalysisInProgress = false;
+        isNarrating = false;
+        if (layoutLoading != null) {
+            layoutLoading.setVisibility(View.GONE);
+        }
     }
 
     private void toggleGeminiLiveMode() {
@@ -417,7 +389,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         boolean isManualMode = SettingsActivity.isManualTriggerModeEnabled(this);
 
         if (isGeminiLiveEnabled) {
-            ivSelectedImage.setVisibility(View.GONE);
             cameraPreviewView.setVisibility(View.VISIBLE);
 
             if (!isManualMode) {
@@ -427,65 +398,61 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
                 autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
                 autoAnalysisHandler.post(autoAnalysisRunnable);
-                Toast.makeText(this, "Gemini Live mode started!", Toast.LENGTH_SHORT).show();
+                // Toast.makeText(this, "Gemini Live mode started!", Toast.LENGTH_SHORT).show();
             } else {
                 autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
-                Toast.makeText(this, "Gemini active (Manual mode).", Toast.LENGTH_SHORT).show();
+                // Toast.makeText(this, "Gemini active (Manual mode).", Toast.LENGTH_SHORT).show();
             }
 
             startSpeechListeningIfReady();
         } else {
-            autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
-            if (speechRecognizerManager != null) {
-                speechRecognizerManager.stopListening();
-            }
-            if (elevenLabsClient != null) {
-                elevenLabsClient.stopAudio();
-            }
-            layoutLoading.setVisibility(View.GONE);
-            isAnalysisInProgress = false;
-            isNarrating = false;
-            Toast.makeText(this, "Gemini turned off.", Toast.LENGTH_SHORT).show();
+            terminateInFlightWork();
+            // Toast.makeText(this, "Gemini turned off.", Toast.LENGTH_SHORT).show();
         }
 
         updateLiveModeUI();
     }
 
     private void updateLiveModeUI() {
+        boolean showStatus = SettingsActivity.isShowStatusIndicatorEnabled(this);
+        if (layoutStatusBadge != null) {
+            layoutStatusBadge.setVisibility(showStatus ? View.VISIBLE : View.GONE);
+        }
+
         boolean isManualMode = SettingsActivity.isManualTriggerModeEnabled(this);
         boolean isListeningForSpeech = speechRecognizerManager != null && speechRecognizerManager.isListeningRequested();
 
         if (isManualMode) {
             if (isGeminiLiveEnabled) {
                 btnToggleGeminiLive.setText("Analyze Scene");
-                btnToggleGeminiLive.setBackgroundColor(Color.parseColor("#8B5CF6"));
+                btnToggleGeminiLive.setBackgroundColor(Color.parseColor("#C11F25"));
                 btnToggleGeminiLive.setIconResource(R.drawable.ic_sparkles);
 
                 if (btnTurnOffGemini != null) {
                     btnTurnOffGemini.setVisibility(View.VISIBLE);
                 }
 
-                viewStatusDot.setBackgroundResource(R.drawable.shape_dot_on);
+
                 if (isNarrating) {
-                    tvLiveStatus.setText("🔊 Gemini: Narrating...");
+                    tvLiveStatus.setText("Narrating...");
                 } else if (isAnalysisInProgress) {
-                    tvLiveStatus.setText("Gemini: Analyzing...");
+                    tvLiveStatus.setText("Analyzing...");
                 } else if (isListeningForSpeech) {
-                    tvLiveStatus.setText("Gemini: Listening for speech...");
+                    tvLiveStatus.setText("Listening...");
                 } else {
-                    tvLiveStatus.setText("Gemini: Manual Mode (Active)");
+                    tvLiveStatus.setText("Active");
                 }
             } else {
                 btnToggleGeminiLive.setText("Turn On Gemini AI");
-                btnToggleGeminiLive.setBackgroundColor(Color.parseColor("#8B5CF6"));
+                btnToggleGeminiLive.setBackgroundColor(Color.parseColor("#C11F25"));
                 btnToggleGeminiLive.setIconResource(R.drawable.ic_sparkles);
 
                 if (btnTurnOffGemini != null) {
                     btnTurnOffGemini.setVisibility(View.GONE);
                 }
 
-                viewStatusDot.setBackgroundResource(R.drawable.shape_dot_off);
-                tvLiveStatus.setText("Gemini: Off");
+
+                tvLiveStatus.setText("Off");
             }
         } else {
             if (btnTurnOffGemini != null) {
@@ -494,26 +461,26 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             if (isGeminiLiveEnabled) {
                 btnToggleGeminiLive.setText("Turn Off Gemini AI");
-                btnToggleGeminiLive.setBackgroundColor(Color.parseColor("#EF4444"));
+                btnToggleGeminiLive.setBackgroundColor(Color.parseColor("#650014"));
                 btnToggleGeminiLive.setIconResource(R.drawable.ic_sparkles);
 
-                viewStatusDot.setBackgroundResource(R.drawable.shape_dot_on);
+
                 if (isNarrating) {
-                    tvLiveStatus.setText("🔊 Gemini Live: Narrating...");
+                    tvLiveStatus.setText("Narrating...");
                 } else if (isAnalysisInProgress) {
-                    tvLiveStatus.setText("Gemini Live: Analyzing...");
+                    tvLiveStatus.setText("Analyzing...");
                 } else if (isListeningForSpeech) {
-                    tvLiveStatus.setText("Gemini Live: Active (Listening)");
+                    tvLiveStatus.setText("Active (Listening)");
                 } else {
-                    tvLiveStatus.setText("Gemini Live: Active");
+                    tvLiveStatus.setText("Active");
                 }
             } else {
                 btnToggleGeminiLive.setText("Turn On Gemini AI");
-                btnToggleGeminiLive.setBackgroundColor(Color.parseColor("#8B5CF6"));
+                btnToggleGeminiLive.setBackgroundColor(Color.parseColor("#C11F25"));
                 btnToggleGeminiLive.setIconResource(R.drawable.ic_sparkles);
 
-                viewStatusDot.setBackgroundResource(R.drawable.shape_dot_off);
-                tvLiveStatus.setText("Gemini Live: Off");
+
+                tvLiveStatus.setText("Off");
             }
         }
     }
@@ -620,12 +587,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         return promptBuilder.toString();
     }
 
-    private void performGeminiAnalysis(Bitmap bitmap, boolean isLiveLoop) {
-        performGeminiAnalysis(bitmap, isLiveLoop, null);
-    }
-
     private void performGeminiAnalysis(Bitmap bitmap, boolean isLiveLoop, String userSpeech) {
-        if (bitmap == null) return;
+        if (!isGeminiLiveEnabled || bitmap == null) return;
 
         // Strict Safety Check (Both Modes): Do not re-trigger if already running!
         if (isAnalysisInProgress || isNarrating) {
@@ -643,11 +606,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         layoutLoading.setVisibility(View.VISIBLE);
 
         if (userSpeech != null && !userSpeech.isEmpty()) {
-            tvLiveStatus.setText("Gemini: Answering question...");
+            tvLiveStatus.setText("Answering question...");
         } else if (isLiveLoop) {
-            tvLiveStatus.setText("Gemini Live: Analyzing...");
+            tvLiveStatus.setText("Analyzing...");
         } else {
-            tvLiveStatus.setText("Gemini: Analyzing...");
+            tvLiveStatus.setText("Analyzing...");
         }
 
         String apiKey = ApiKeyManager.getApiKey(this);
@@ -659,6 +622,15 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         geminiApiClient.analyzeImage(apiKey, bitmap, prevBitmap, prompt, "gemini-3.8-flash", new GeminiApiClient.ApiCallback() {
             @Override
             public void onSuccess(String description) {
+                if (!isGeminiLiveEnabled) {
+                    isAnalysisInProgress = false;
+                    isNarrating = false;
+                    if (layoutLoading != null) {
+                        layoutLoading.setVisibility(View.GONE);
+                    }
+                    return;
+                }
+
                 lastAnalyzedBitmap = bitmap;
                 HistoryManager.addEntry(description);
 
@@ -676,10 +648,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             public void onError(String errorMessage) {
                 isAnalysisInProgress = false;
                 isNarrating = false;
-                layoutLoading.setVisibility(View.GONE);
+                if (layoutLoading != null) {
+                    layoutLoading.setVisibility(View.GONE);
+                }
 
                 updateLiveModeUI();
                 startSpeechListeningIfReady();
+
+                if (!isGeminiLiveEnabled) {
+                    return;
+                }
 
                 Log.e(TAG, "Gemini Analysis Error: " + errorMessage);
                 if (!isLiveLoop) {
@@ -693,6 +671,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void narrateWithElevenLabs(String text) {
+        if (!isGeminiLiveEnabled) {
+            isAnalysisInProgress = false;
+            isNarrating = false;
+            if (layoutLoading != null) {
+                layoutLoading.setVisibility(View.GONE);
+            }
+            updateLiveModeUI();
+            return;
+        }
+
         String elevenLabsKey = ApiKeyManager.getElevenLabsApiKey(this);
         if (elevenLabsKey == null || elevenLabsKey.isEmpty()) {
             isAnalysisInProgress = false;
@@ -713,6 +701,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         elevenLabsClient.speakText(this, elevenLabsKey, text, isFemale, new ElevenLabsClient.NarrationCallback() {
             @Override
             public void onStart() {
+                if (!isGeminiLiveEnabled) {
+                    elevenLabsClient.stopAudio();
+                    isNarrating = false;
+                    isAnalysisInProgress = false;
+                    updateLiveModeUI();
+                    return;
+                }
                 isNarrating = true;
                 if (speechRecognizerManager != null) {
                     speechRecognizerManager.stopListening();
@@ -783,22 +778,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
     }
 
-    private void showAboutDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("About Gemini Lens AI")
-                .setMessage("Gemini Lens AI provides continuous live camera vision powered by Google Gemini AI and ElevenLabs AI Voice Narration.\n\n" +
-                        "• Constant live camera preview feed\n" +
-                        "• Motion & zoom detection so Gemini analyzes when camera moves to new targets\n" +
-                        "• Speech interaction: Ask questions out loud anytime when Gemini is not speaking\n" +
-                        "• Automatic ElevenLabs AI voice narration for generated descriptions\n" +
-                        "• Male and Female AI voice selection\n" +
-                        "• Automatic vs Manual Trigger Mode setting\n" +
-                        "• Optional description text overlay (configurable in Settings)\n" +
-                        "• Pinch-to-zoom & quick 1x/2x/5x controls")
-                .setPositiveButton("OK", null)
-                .show();
-    }
-
     private void copyResultToClipboard() {
         String text = tvDescriptionResult.getText().toString();
         if (!text.isEmpty()) {
@@ -825,23 +804,20 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     protected void onPause() {
         super.onPause();
-        if (speechRecognizerManager != null) {
-            speechRecognizerManager.stopListening();
-        }
         if (sensorManager != null) {
             sensorManager.unregisterListener(this);
         }
-        if (elevenLabsClient != null) {
-            elevenLabsClient.stopAudio();
-        }
-        if (isGeminiLiveEnabled) {
-            autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
-        }
+        terminateInFlightWork();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        boolean showStatus = SettingsActivity.isShowStatusIndicatorEnabled(this);
+        if (layoutStatusBadge != null) {
+            layoutStatusBadge.setVisibility(showStatus ? View.VISIBLE : View.GONE);
+        }
+
         boolean showText = SettingsActivity.isShowDescriptionTextEnabled(this);
         if (!showText) {
             cardResult.setVisibility(View.GONE);
@@ -860,24 +836,28 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_NORMAL);
             }
         }
-        if (isGeminiLiveEnabled && !isManualMode) {
-            autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
-            autoAnalysisHandler.post(autoAnalysisRunnable);
+
+        if (isGeminiLiveEnabled) {
+            if (!isManualMode) {
+                autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
+                autoAnalysisHandler.post(autoAnalysisRunnable);
+            } else {
+                autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
+            }
+            startSpeechListeningIfReady();
         } else {
             autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
+            if (speechRecognizerManager != null) {
+                speechRecognizerManager.stopListening();
+            }
         }
-
-        startSpeechListeningIfReady();
     }
 
     @Override
     protected void onDestroy() {
-        autoAnalysisHandler.removeCallbacks(autoAnalysisRunnable);
+        terminateInFlightWork();
         if (speechRecognizerManager != null) {
             speechRecognizerManager.destroy();
-        }
-        if (elevenLabsClient != null) {
-            elevenLabsClient.stopAudio();
         }
         super.onDestroy();
     }
