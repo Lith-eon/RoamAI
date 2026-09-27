@@ -1,0 +1,41 @@
+<resources>
+    <string name="app_name">Gemini Lens AI</string>
+    <string name="subtitle">Smart Image Analysis &amp; Descriptions</string>
+    <string name="btn_take_photo">Take Photo</string>
+    <string name="btn_choose_gallery">Select Image</string>
+    <string name="btn_analyze">Analyze with Gemini</string>
+    <string name="btn_api_key">API Key</string>
+    <string name="btn_history">History</string>
+    <string name="btn_copy">Copy</string>
+    <string name="btn_speak">Read Aloud</string>
+    <string name="btn_share">Share</string>
+    <string name="btn_clear">Clear</string>
+    <string name="btn_save">Save Key</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_switch_camera">Switch Camera</string>
+    <string name="btn_flash">Toggle Flash</string>
+    
+    <string name="prompt_preset_detailed">Detailed Description</string>
+    <string name="prompt_preset_quick">Quick Summary</string>
+    <string name="prompt_preset_ocr">Extract Text (OCR)</string>
+    <string name="prompt_preset_objects">Identify Objects</string>
+    <string name="prompt_preset_creative">Creative Story</string>
+    
+    <string name="api_key_dialog_title">Gemini API Key Setup</string>
+    <string name="api_key_dialog_msg">Paste your Google Gemini API key below. You can also edit it in code at BuildConfig.GEMINI_API_KEY.</string>
+    <string name="api_key_hint">AIzaSy...</string>
+    <string name="api_key_status_configured">API Key: Configured (Saved in App)</string>
+    <string name="api_key_status_buildconfig">API Key: Using BuildConfig / Secret</string>
+    <string name="api_key_status_missing">API Key: Missing - Please enter key</string>
+    
+    <string name="status_ready">Select or capture an image to describe</string>
+    <string name="status_analyzing">Analyzing image with Gemini AI...</string>
+    <string name="status_success">Analysis complete!</string>
+    <string name="status_error">Error: </string>
+    <string name="status_no_key">Please enter a valid Gemini API Key in settings!</string>
+    
+    <string name="permission_camera_title">Camera Access Required</string>
+    <string name="permission_camera_msg">This app needs camera access to capture photos for Gemini AI analysis.</string>
+
+    <string name="custom_prompt_hint">Custom prompt (optional)...</string>
+</resources>
