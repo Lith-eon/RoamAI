@@ -83,8 +83,6 @@ An AI tour guide Android application powered by **Google Gemini AI** and **Eleve
 5. **Adjust Settings**:
    * Tap the **Settings** gear icon in the top right to switch between **Automatic** and **Manual** trigger modes, toggle status indicators, or change the ElevenLabs narration voice (Male/Female).
 
----
 
-## 📂 Project Structure
 
    
