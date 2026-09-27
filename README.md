@@ -1,4 +1,4 @@
-#RoamAI
+# RoamAI
 
 An AI tour guide Android application powered by **Google Gemini AI** and **ElevenLabs Voice Synthesis**. **RoamAI** turns your smartphone camera into an interactive guide that observes your surroundings, provides insightful descriptions, and responds to your spoken questions in real time. The purpose of this app is to get people more excited about exploring and more interested in the stuff around them - whether it be an iconic or rare object or place, or an everyday piece of infrastructure.
 
